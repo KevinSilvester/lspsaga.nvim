@@ -27,6 +27,7 @@ local function hi_define()
     ActionPreviewTitle = { link = 'Title' },
     CodeActionText = { link = '@variable' },
     CodeActionNumber = { link = 'DiffAdd' },
+    CodeActionServer = { link = 'Comment' },
     CodeActionCursorLine = { link = 'CursorLine' },
     -- hover
     HoverNormal = { link = 'SagaNormal' },
