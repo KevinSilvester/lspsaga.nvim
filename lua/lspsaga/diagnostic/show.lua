@@ -34,10 +34,8 @@ local function new_node()
   }
 end
 
----single linked list
-local function generate_list(entrys)
+local function create_linked_list(entrys)
   local list = new_node()
-
   local curnode
   for _, item in ipairs(entrys) do
     if #list.diags == 0 then
@@ -51,6 +49,37 @@ local function generate_list(entrys)
     curnode.diags[#curnode.diags + 1] = item
   end
   return list
+end
+
+local function sort_entries(entrys)
+  table.sort(entrys, function(a, b)
+    if a.severity ~= b.severity then
+      return a.severity < b.severity
+    elseif a.lnum ~= b.lnum then
+      return a.lnum < b.lnum
+    else
+      return a.col < b.col
+    end
+  end)
+end
+
+---single linked list
+local function generate_list(entrys, callback)
+  local diagnostic_config = vim.diagnostic.config and vim.diagnostic.config()
+  local severity_sort_enabled = diagnostic_config and diagnostic_config.severity_sort
+
+  if severity_sort_enabled then
+    vim.defer_fn(function()
+      sort_entries(entrys)
+      local list = create_linked_list(entrys)
+      if callback then
+        callback(list)
+      end
+    end, 0)
+    return nil
+  else
+    return create_linked_list(entrys)
+  end
 end
 
 local function find_node(list, lnum)
@@ -293,7 +322,7 @@ function sd:show(opt)
     curnode.expand = true
     for i, entry in ipairs(curnode.diags) do
       local virt_start = i == #curnode.diags and ui.lines[1] or ui.lines[2]
-      local mes = msg_fmt(entry)
+
       if i == 1 then
         ---@diagnostic disable-next-line: param-type-mismatch
         local fname = fn.fnamemodify(api.nvim_buf_get_name(tonumber(entry.bufnr)), ':t')
@@ -309,8 +338,26 @@ function sd:show(opt)
         count = count + 1
         curnode.lnum = count
       end
-      self:write_line(mes, entry.severity, virt_start, count)
-      count = count + 1
+
+      local messages = vim.split(entry.message, '\n')
+      for j, message in ipairs(messages) do
+        local mes = ''
+        if j == 1 then
+          mes = msg_fmt({
+            message = message,
+            lnum = entry.lnum,
+            col = entry.col,
+            bufnr = entry.bufnr,
+            source = entry.source,
+            code = entry.code,
+          })
+        else
+          mes = ' ' .. message
+        end
+
+        self:write_line(mes, entry.severity, virt_start, count)
+        count = count + 1
+      end
     end
     curnode = curnode.next
   end
@@ -345,8 +392,11 @@ function sd:show_diagnostics(opt)
   if next(entrys) == nil then
     return
   end
-  opt.entrys_list = generate_list(entrys)
-  self:show(opt)
+
+  generate_list(entrys, function(sorted_list)
+    opt.entrys_list = sorted_list
+    self:show(opt)
+  end)
 end
 
 return setmetatable(ctx, sd)

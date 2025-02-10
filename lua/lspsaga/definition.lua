@@ -66,6 +66,14 @@ function def:close_all()
   api.nvim_del_augroup_by_name('SagaPeekdefinition')
 end
 
+local function transform_deno_path(fname)
+  if not fname:match('^deno:/') then
+    return fname
+  end
+  fname = fname:gsub('%%40', '@')
+  return fname:gsub('^deno:', 'deno\\:')
+end
+
 function def:apply_maps(bufnr)
   for action, map in pairs(config.definition.keys) do
     if action ~= 'close' then
@@ -86,6 +94,7 @@ function def:apply_maps(bufnr)
         self:close_all()
         local curbuf = api.nvim_get_current_buf()
         if action ~= 'edit' or curbuf ~= bufnr then
+          fname = transform_deno_path(fname)
           vim.cmd[action](fname)
         end
         restore()
@@ -209,7 +218,7 @@ function def:definition_request(method, handler_T, args)
 
   local current_buf = api.nvim_get_current_buf()
 
-  local params = lsp.util.make_position_params()
+  local params = lsp.util.make_position_params(0, util.get_offset_encoding({ bufnr = current_buf }))
   if not self.opt_restore then
     self.opt_restore = win:minimal_restore()
   end
